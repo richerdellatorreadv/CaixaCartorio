@@ -1,4 +1,6 @@
-// ═══ MATH INPUTS ═══
+// ══════════════════════════════════════════════════════════
+// MATH INPUTS
+// ══════════════════════════════════════════════════════════
 function formatCurrencyInput(val) {
   let v = val.replace(/\D/g, ''); 
   if(v === '') return '';
@@ -57,7 +59,9 @@ function safeMathEval(expr) {
 function evaluateMath(e) { let val = this.value.trim(); if(val === '') { triggerCalc(this.id); return; } let mathStr = val.replace(/\./g, '').replace(/,/g, '.'); try { if (/^[0-9+\-*/.\s]+$/.test(mathStr)) { let result = safeMathEval(mathStr); if (!isNaN(result) && isFinite(result)) this.value = fmtInput(result); } } catch(err) {} triggerCalc(this.id); }
 function triggerCalc(id) { const c = id.split('-')[0]; if(CAIXAS.find(x => x.id === c)) calcularCaixa(c); else calcularTudo(); }
 
-// ═══ LÓGICA DO CADEADO (FECHAMENTO DE DIA) ═══
+// ══════════════════════════════════════════════════════════
+// LÓGICA DO CADEADO (FECHAMENTO DE DIA)
+// ══════════════════════════════════════════════════════════
 let isDayLocked = false;
 let configOperadoresPodemDestravar = false;
 
@@ -92,4 +96,3 @@ async function toggleLockDay() {
     showToast("Erro ao trancar/destrancar: " + e.message, 3000, true);
   }
 }
-

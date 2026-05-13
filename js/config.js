@@ -1,4 +1,6 @@
-// ═══ FIREBASE SYNC CONFIG ═══
+// ══════════════════════════════════════════════════════════
+// FIREBASE SYNC CONFIG
+// ══════════════════════════════════════════════════════════
 const firebaseConfig = {
   apiKey: "AIzaSyClMGH7dCh98WReopZpNk9Kd52TxhSF-xQ",
   authDomain: "caixacartorio-70b6a.firebaseapp.com",
@@ -13,7 +15,9 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 const auth = firebase.auth();
 
-// ═══ DEFAULT CONFIGURATION ═══
+// ══════════════════════════════════════════════════════════
+// DEFAULT CONFIGURATION
+// ══════════════════════════════════════════════════════════
 
 const SERVENTIA_PRESETS = [
   { id:'ri',       icon:'building-2',    nome:'Registro de Imóveis',      desc:'Registro de transmissão e ônus de imóveis', cor:'ri-color',
@@ -58,19 +62,21 @@ let activeTabId = 'geral'; let activeCaixaForModal = null; let lastDiffs = {};
 let myChart = null; let historyChart = null;
 let activeOperator = null; let pendingProfile = null;
 let cartorioGlobalName = 'Cartório';
-// Plano protegido: não pode ser alterado via console sem revalidar com o servidor
+let currentCartorioId = null;
+let cartorioCode = null;
+
+// Plano protegido
 let _planoInterno = 'profissional';
 let _planoValidadoHash = null;
 function _computePlanoHash(p) { return btoa(p + ':' + (currentCartorioId || '') + ':cxc_salt_2026'); }
 Object.defineProperty(window, 'currentPlano', {
   get() { return _planoInterno; },
   set(v) {
-    // Só aceita se vier do fluxo legítimo (com hash válido pendente)
     if (_planoValidadoHash && _planoValidadoHash === _computePlanoHash(v)) {
       _planoInterno = v;
       _planoValidadoHash = null;
     } else {
-      console.warn('[SEGURANÇA] Alteração de plano bloqueada. O plano é gerenciado pelo servidor.');
+      console.warn('[SEGURANÇA] Alteração de plano bloqueada.');
     }
   },
   configurable: false,

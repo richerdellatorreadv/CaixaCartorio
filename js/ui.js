@@ -1,58 +1,6 @@
-// ═══ LANÇAMENTOS INDIVIDUAIS ═══
-function toggleDetalhes(c, id) {
-  const wrap = document.getElementById(`${c}-${id}-det-wrap`);
-  const btn = document.getElementById(`btn-det-${c}-${id}`);
-  if(!wrap) return;
-  wrap.classList.toggle('active');
-  btn.classList.toggle('active');
-}
-
-function addDetalhe(c, id, val = '') {
-  const list = document.getElementById(`${c}-${id}-det-list`);
-  const row = document.createElement('div');
-  row.className = 'detalhe-row';
-  row.innerHTML = `<input type="text" class="detalhe-input" placeholder="0,00" oninput="calcDetalhes('${c}','${id}')"><button class="btn-ghost-danger" style="padding:6px; border-radius:4px; cursor:pointer;" onclick="removeDetalhe(this, '${c}', '${id}')" title="Remover"><i data-lucide="x" style="width:14px;height:14px;"></i></button>`;
-  row.querySelector('.detalhe-input').value = val;
-  list.appendChild(row);
-  lucide.createIcons();
-  
-  if(val === '') {
-    setTimeout(() => {
-      const inputs = list.querySelectorAll('.detalhe-input');
-      if(inputs.length > 0) inputs[inputs.length - 1].focus();
-    }, 50);
-  }
-  calcDetalhes(c, id);
-}
-
-function removeDetalhe(btnEl, c, id) {
-  btnEl.parentElement.remove();
-  calcDetalhes(c, id);
-}
-
-function calcDetalhes(c, id) {
-  const list = document.getElementById(`${c}-${id}-det-list`);
-  const mainInput = document.getElementById(`${c}-${id}`);
-  const inputs = list.querySelectorAll('.detalhe-input');
-  
-  if (inputs.length === 0) {
-    mainInput.disabled = false;
-    mainInput.title = "";
-  } else {
-    mainInput.disabled = true;
-    mainInput.title = "O valor está sendo somado automaticamente pela lista de recibos.";
-    let sum = 0;
-    inputs.forEach(inp => {
-      const v = parseFloat(inp.value.replace(/\./g, '').replace(',', '.')) || 0;
-      sum += v;
-    });
-    mainInput.value = sum.toLocaleString('pt-BR', {minimumFractionDigits:2});
-  }
-  calcularCaixa(c);
-  salvarDadosDebounced();
-}
-
-// Removes multiple maquininha blocks code
+// ══════════════════════════════════════════════════════════
+// CONFIGURATION & SETTINGS
+// ══════════════════════════════════════════════════════════
 
 function saveConfigCaixas() {
   if(!currentCartorioId) return;
@@ -64,10 +12,9 @@ function saveConfigCaixas() {
     saida_patrimonial: document.getElementById('cfg-label-patrimonio').value || 'Retirada/Sócio'
   };
 
-configOperadoresPodemDestravar = document.getElementById('cfg-lock-permission').checked;
+  configOperadoresPodemDestravar = document.getElementById('cfg-lock-permission').checked;
 
   salvarDados(false); // Salva os dados financeiros pendentes antes de mudar a config
-
   
   Promise.all([
     db.ref('cartorios/' + currentCartorioId + '/config/caixas').set(editingCaixas),
@@ -84,4 +31,15 @@ configOperadoresPodemDestravar = document.getElementById('cfg-lock-permission').
     alert("Erro ao salvar configurações na nuvem: " + e.message);
     softReloadUI();
   });
+}
+
+function softReloadUI() {
+    // Only reload UI if not in auth mode
+    if (document.body.classList.contains('auth-mode')) return;
+    
+    window._uiInitialized = false;
+    const container = document.getElementById('pages-container');
+    if(container) container.innerHTML = '';
+    loadConfigAndBuildUI();
+    calcularTudo();
 }
