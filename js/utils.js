@@ -25,7 +25,10 @@ function dismissSplash() {
   const splash = document.getElementById('splash-screen');
   if (splash) {
     splash.style.opacity = '0';
-    setTimeout(() => splash.style.display = 'none', 500);
+    setTimeout(() => {
+      splash.style.display = 'none';
+      if (window.lucide) lucide.createIcons();
+    }, 500);
   }
 }
 
