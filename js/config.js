@@ -1,4 +1,20 @@
+// ═══ FIREBASE SYNC CONFIG ═══
+const firebaseConfig = {
+  apiKey: "AIzaSyClMGH7dCh98WReopZpNk9Kd52TxhSF-xQ",
+  authDomain: "caixacartorio-70b6a.firebaseapp.com",
+  databaseURL: "https://caixacartorio-70b6a-default-rtdb.firebaseio.com",
+  projectId: "caixacartorio-70b6a",
+  storageBucket: "caixacartorio-70b6a.firebasestorage.app",
+  messagingSenderId: "912268046292",
+  appId: "1:912268046292:web:0df9526d679e0322ac3041",
+  measurementId: "G-Q3KLFCLGKT"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const auth = firebase.auth();
+
 // ═══ DEFAULT CONFIGURATION ═══
+
 const SERVENTIA_PRESETS = [
   { id:'ri',       icon:'building-2',    nome:'Registro de Imóveis',      desc:'Registro de transmissão e ônus de imóveis', cor:'ri-color',
     dep:{ id:'dep_ri',   nome:'Registro de Imóveis',      cor:'ri-color' },

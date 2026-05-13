@@ -60,6 +60,7 @@ function safeMathEval(expr) {
 function evaluateMath(e) { let val = this.value.trim(); if(val === '') { triggerCalc(this.id); return; } let mathStr = val.replace(/\./g, '').replace(/,/g, '.'); try { if (/^[0-9+\-*/.\s]+$/.test(mathStr)) { let result = safeMathEval(mathStr); if (!isNaN(result) && isFinite(result)) this.value = fmtInput(result); } } catch(err) {} triggerCalc(this.id); }
 function triggerCalc(id) { const c = id.split('-')[0]; if(CAIXAS.find(x => x.id === c)) calcularCaixa(c); else calcularTudo(); }
 
+
 // ═══ FIREBASE SYNC CONFIG ═══
 const firebaseConfig = {
   apiKey: "AIzaSyClMGH7dCh98WReopZpNk9Kd52TxhSF-xQ",
@@ -73,8 +74,8 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
-
 const auth = firebase.auth();
+
 let currentCartorioId = null;
 let cartorioCode = null;
 
@@ -82,6 +83,7 @@ let unsubscribeSnapshot = null;
 let isRemoteUpdate = false;
 let saveTimeout = null;
 let lastKnownState = null;
+
 
 // ═══ LÓGICA DO CADEADO (FECHAMENTO DE DIA) ═══
 let isDayLocked = false;
