@@ -1,6 +1,7 @@
-// ═══ INITIALIZATION & UI GENERATION ═══
 function loadConfigAndBuildUI() {
   if (window._uiInitialized) return;
+
+
   
   // No more localStorage. Use defaults or wait for Firebase
   if (CAIXAS.length === 0) CAIXAS = [...DEFAULT_CAIXAS];
@@ -29,6 +30,26 @@ function loadConfigAndBuildUI() {
       return `<div class="card"><div class="card-head"><div class="card-title"><div class="card-title-bar yellow"></div>Conferência com ${s.nome}</div></div><div class="field"><div class="field-label">Valor gerado pelo relatório de fechamento do sistema <span class="field-hint">Compara com o total dos caixas de: ${depNames || 'Nenhum'}</span></div><input type="text" autocomplete="off" class="field-input math-input" id="sys-input-${s.id}" placeholder="0,00"></div><div id="g-diff-block-${s.id}" class="diff-block"><div><div class="diff-info-label" id="g-diff-label-${s.id}">Aguardando lançamento</div><div class="diff-info-sub">Comparativo: Caixas × Sistema</div></div><div class="diff-val dim" id="g-diff-val-${s.id}">—</div></div></div>`;
     }).join('');
   }
+
+  db.ref('cartorios/' + currentCartorioId + '/config/caixas').on('value', (cfgSnap) => {
+    if (cfgSnap.exists()) {
+      const remoteConfig = cfgSnap.val();
+      if (JSON.stringify(remoteConfig) !== JSON.stringify(CAIXAS)) {
+        CAIXAS = remoteConfig;
+        
+        let needsFullReload = false;
+        CAIXAS.forEach(cfg => { if(!document.getElementById(`page-${cfg.id}`)) needsFullReload = true; });
+        
+        if (needsFullReload) {
+          if (window._uiInitialized) location.reload();
+          else softReloadUI();
+        } else {
+          // Atualização leve de nomes e abas
+          softReloadUI();
+        }
+      }
+    }
+  });
 
   let tabsHtml = `<button class="tab-btn active" onclick="switchTab('geral',this)">Fechamento Geral<span class="tab-badge" id="tb-geral">R$ 0</span></button>`;
   CAIXAS.forEach(cfg => { const clr = getColorClass(cfg.tipo); tabsHtml += `<button class="tab-btn" draggable="true" data-caixa-id="${cfg.id}" onclick="switchTab('${cfg.id}',this)"><span class="${clr}">${cfg.nome}</span><span class="tab-badge" id="tb-${cfg.id}">R$ 0</span></button>`; });
@@ -272,11 +293,12 @@ function renderHistoryChart(dailyData) {
   historyChart = new Chart(ctx, { type: 'line', data: { labels: labels, datasets: [{ label: 'Faturamento Líquido (R$)', data: totals, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', borderWidth: 3, pointBackgroundColor: '#3b82f6', pointBorderColor: '#fff', pointRadius: 5, fill: true, tension: 0.3 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: gc }, ticks: { color: tc } }, x: { grid: { display: false }, ticks: { color: tc } } } } });
 }
 
-// ═══ STATE LISTENER ═══
 auth.onAuthStateChanged(async (user) => {
   if(window.isRegistering) return;
+
   
   if (user) {
+
     document.getElementById('auth-container').style.display = 'none';
     document.body.classList.remove('auth-mode');
     
@@ -355,12 +377,12 @@ auth.onAuthStateChanged(async (user) => {
         if (lockSnap.exists()) configOperadoresPodemDestravar = lockSnap.val();
       });
     } else {
-      dismissSplash();
+      if (window.dismissSplash) dismissSplash();
       alert("Erro: Perfil de usuário não encontrado.");
       auth.signOut();
     }
   } else {
-    dismissSplash();
+    if (window.dismissSplash) dismissSplash();
     document.getElementById('auth-container').style.display = 'flex';
     document.body.classList.add('auth-mode');
     currentCartorioId = null;
@@ -368,6 +390,7 @@ auth.onAuthStateChanged(async (user) => {
     if(disp) disp.style.display = 'none';
   }
 });
+
 
 
 
@@ -439,8 +462,8 @@ function closePinModal() {
 
 function setActiveOperator(op) {
   activeOperator = op;
-  localStorage.setItem('activeOperatorId', op.id);
   document.getElementById('profileModal').style.display = 'none';
+
   const display = document.getElementById('active-operator-display');
   if(display) display.textContent = `Operador: ${op.nome}`;
   // Update profile menu active operator
@@ -458,8 +481,8 @@ function logoffOperator() {
     window._sessionPresenceRef.remove();
     window._sessionPresenceRef = null;
   }
-  localStorage.removeItem('activeOperatorId');
   activeOperator = null;
+
   const display = document.getElementById('active-operator-display');
   if(display) display.textContent = '';
   const menuOp = document.getElementById('menu-active-operator');
@@ -508,7 +531,8 @@ function salvarDadosDebounced() {
   saveTimeout = setTimeout(() => salvarDados(false), 1500);
 }
 
-function getStorageKey() { return `caixa_v3_${document.getElementById('mainDate').value}`; }
+// No more localStorage
+
 
 function coletarDados() {
   const now = new Date();
