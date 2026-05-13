@@ -318,21 +318,14 @@ function aplicarSaldoProximoDia(c) {
   currentDate.setDate(currentDate.getDate() + 1);
   const nextDateStr = currentDate.toLocaleDateString('en-CA'); // YYYY-MM-DD
 
-  // Carrega (ou inicializa) os dados do dia seguinte
-  const nextKey = `caixa_v3_${nextDateStr}`;
-  let nextData = {};
-  try { nextData = JSON.parse(localStorage.getItem(nextKey) || '{}'); } catch(e) { nextData = {}; }
-  
-  if(!nextData[c]) nextData[c] = {};
-  nextData[c].abertura = val.toLocaleString('pt-BR', {minimumFractionDigits:2});
-  
-  localStorage.setItem(nextKey, JSON.stringify(nextData));
-  // Tenta persistir no Firebase silenciosamente
+  // Tenta persistir no Firebase
+
   (async () => {
     if(!currentCartorioId) return;
     try {
       await db.ref('cartorios/' + currentCartorioId + '/caixas/' + nextDateStr + '/' + c).update({ abertura: val.toLocaleString('pt-BR', {minimumFractionDigits:2}) });
-    } catch(e) { console.warn('Transferência salva só localmente:', e); }
+    } catch(e) { console.error('Erro na transferência:', e); }
+
   })();
 
   const nextDateFormatted = currentDate.toLocaleDateString('pt-BR');

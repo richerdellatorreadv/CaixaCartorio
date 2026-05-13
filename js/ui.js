@@ -67,12 +67,7 @@ function saveConfigCaixas() {
 configOperadoresPodemDestravar = document.getElementById('cfg-lock-permission').checked;
 
   salvarDados(false); // Salva os dados financeiros pendentes antes de mudar a config
-  localStorage.setItem(getStorageKey(), JSON.stringify(coletarDados())); 
-  localStorage.setItem('caixa_config_v1', JSON.stringify(editingCaixas)); 
-  localStorage.setItem('operadores_config_v1', JSON.stringify(editingOperadores));
-  localStorage.setItem('labels_config_v1', JSON.stringify(editingLabels));
-  localStorage.setItem('departamentos_config_v1', JSON.stringify(editingDepartamentos));
-  localStorage.setItem('sistemas_config_v1', JSON.stringify(editingSistemas));
+
   
   Promise.all([
     db.ref('cartorios/' + currentCartorioId + '/config/caixas').set(editingCaixas),

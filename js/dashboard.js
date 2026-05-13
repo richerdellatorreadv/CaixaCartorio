@@ -1,20 +1,11 @@
 // ═══ INITIALIZATION & UI GENERATION ═══
 function loadConfigAndBuildUI() {
-  const savedConfig = localStorage.getItem('caixa_config_v1');
-  if (savedConfig) { try { CAIXAS = JSON.parse(savedConfig); } catch(e) { CAIXAS = [...DEFAULT_CAIXAS]; } } else { CAIXAS = [...DEFAULT_CAIXAS]; }
+  if (window._uiInitialized) return;
   
-  const savedOps = localStorage.getItem('operadores_config_v1');
-  if (savedOps) { try { OPERADORES = JSON.parse(savedOps); } catch(e) { OPERADORES = [...DEFAULT_OPERADORES]; } } else { OPERADORES = [...DEFAULT_OPERADORES]; }
-
-  const savedLabels = localStorage.getItem('labels_config_v1');
-  if (savedLabels) { try { LABELS = JSON.parse(savedLabels); } catch(e) { LABELS = {...DEFAULT_LABELS}; } } else { LABELS = {...DEFAULT_LABELS}; }
-
-  // Fallback for Departamentos & Sistemas if completely missing
-  const savedDeps = localStorage.getItem('departamentos_config_v1');
-  const savedSys = localStorage.getItem('sistemas_config_v1');
-  
-  if (savedDeps) { try { DEPARTAMENTOS = JSON.parse(savedDeps); } catch(e) { DEPARTAMENTOS = []; } }
-  if (savedSys) { try { SISTEMAS = JSON.parse(savedSys); } catch(e) { SISTEMAS = []; } }
+  // No more localStorage. Use defaults or wait for Firebase
+  if (CAIXAS.length === 0) CAIXAS = [...DEFAULT_CAIXAS];
+  if (OPERADORES.length === 0) OPERADORES = [...DEFAULT_OPERADORES];
+  if (DEPARTAMENTOS.length === 0) DEPARTAMENTOS.push({ id: 'geral', nome: 'Departamento Geral', cor: 'ri-color' });
 
   if (!savedDeps || DEPARTAMENTOS.length === 0) {
     if (DEPARTAMENTOS.length === 0) {
@@ -56,7 +47,14 @@ function loadConfigAndBuildUI() {
     div.innerHTML = `<div class="content"><div id="caixa-${cfg.id}">${renderCaixaHTML(cfg)}</div></div>`;
     container.appendChild(div);
   });
+
+  window._uiInitialized = true;
+  if (window.lucide) lucide.createIcons();
+  
+  // If we have an active operator, make sure the UI reflects it
+  if (activeOperator) setActiveOperator(activeOperator);
 }
+
 
 
 function renderFieldWithDetails(c, id, label, hint) {
@@ -277,15 +275,20 @@ function renderHistoryChart(dailyData) {
 // ═══ STATE LISTENER ═══
 auth.onAuthStateChanged(async (user) => {
   if(window.isRegistering) return;
-  dismissSplash();
+  
   if (user) {
     document.getElementById('auth-container').style.display = 'none';
     document.body.classList.remove('auth-mode');
     
+    // Manage Splash Status
+    const splashStatus = document.getElementById('splash-status');
+    if (splashStatus) splashStatus.textContent = 'Autenticando...';
+
     const snap = await db.ref('users/' + user.uid).once('value');
     if (snap.exists()) {
       currentCartorioId = snap.val().cartorioId;
       
+      // Load info once to speed up
       const cartSnap = await db.ref('cartorios/' + currentCartorioId + '/info').once('value');
       if(cartSnap.exists()) {
         const info = cartSnap.val();
@@ -299,7 +302,7 @@ auth.onAuthStateChanged(async (user) => {
         if(disp) { disp.textContent = `Código: ${cartorioCode}`; disp.style.display = 'inline'; }
       }
       
-      // Live listener for cartório info changes (syncs across all browsers)
+      // Live listeners for all configs
       db.ref('cartorios/' + currentCartorioId + '/info').on('value', (infoSnap) => {
         if(infoSnap.exists()) {
           const inf = infoSnap.val();
@@ -313,116 +316,51 @@ auth.onAuthStateChanged(async (user) => {
       db.ref('cartorios/' + currentCartorioId + '/config/caixas').on('value', (cfgSnap) => {
         if (cfgSnap.exists()) {
           const remoteConfig = cfgSnap.val();
-          const localStr = JSON.stringify(remoteConfig);
-          if (localStr !== localStorage.getItem('caixa_config_v1')) {
-            localStorage.setItem('caixa_config_v1', localStr);
+          if (JSON.stringify(remoteConfig) !== JSON.stringify(CAIXAS)) {
             CAIXAS = remoteConfig;
-            
-            let needsFullReload = false;
-            CAIXAS.forEach(cfg => { if(!document.getElementById(`page-${cfg.id}`)) needsFullReload = true; });
-            document.querySelectorAll('.page').forEach(p => {
-              const pid = p.id;
-              if (pid !== 'page-geral' && pid !== 'page-dashboard') {
-                 const cid = pid.replace('page-', '');
-                 if(!CAIXAS.find(c => c.id === cid)) needsFullReload = true;
-              }
-            });
-
-            if (needsFullReload) {
-              if (window._dataSessionActive) {
-                salvarDados(false).then(() => {
-                  softReloadUI();
-                });
-              } else if (!document.body.classList.contains('auth-mode')) {
-                softReloadUI();
-              }
-            } else {
-              let tabsHtml = `<button class="tab-btn ${activeTabId==='geral'?'active':''}" onclick="switchTab('geral',this)">Fechamento Geral<span class="tab-badge" id="tb-geral">R$ 0</span></button>`;
-              CAIXAS.forEach(cfg => { const clr = getColorClass(cfg.tipo); tabsHtml += `<button class="tab-btn ${activeTabId===cfg.id?'active':''}" draggable="true" data-caixa-id="${cfg.id}" onclick="switchTab('${cfg.id}',this)"><span class="${clr}">${cfg.nome}</span><span class="tab-badge" id="tb-${cfg.id}">R$ 0</span></button>`; });
-              tabsHtml += `<button class="tab-btn ${activeTabId==='dashboard'?'active':''}" onclick="switchTab('dashboard',this)"><i data-lucide="bar-chart-3" style="width:14px; margin-right:4px;"></i> Histórico</button>`;
-              document.getElementById('tab-nav-container').innerHTML = tabsHtml;
-              initDragDropTabs();
-              lucide.createIcons();
-
-              CAIXAS.forEach(cfg => {
-                const page = document.getElementById(`page-${cfg.id}`);
-                if(page) {
-                  const titleEl = page.querySelector('.page-title');
-                  if(titleEl) { titleEl.textContent = cfg.nome; titleEl.className = `page-title ${getColorClass(cfg.tipo)}`; }
-                }
-              });
-
-              let tableHtml = '';
-              CAIXAS.forEach(cfg => { const clr = getColorClass(cfg.tipo); tableHtml += `<tr><td class="${clr}">${cfg.nome}</td><td id="g-${cfg.id}-din">—</td><td id="g-${cfg.id}-pix">—</td><td id="g-${cfg.id}-cred">—</td><td id="g-${cfg.id}-taxa" style="color:var(--accent-r)">—</td><td id="g-${cfg.id}-deb">—</td><td id="g-${cfg.id}-dep">—</td><td id="g-${cfg.id}-tot" class="v-green">—</td></tr>`; });
-              tableHtml += `<tr class="tot-row"><td>TOTAL GERAL</td><td id="g-sum-din">—</td><td id="g-sum-pix">—</td><td id="g-sum-cred">—</td><td id="g-sum-taxa" style="color:var(--accent-r)">—</td><td id="g-sum-deb">—</td><td id="g-sum-dep">—</td><td id="g-sum-tot" class="v-green">—</td></tr>`;
-              const tbody = document.getElementById('resumo-tbody');
-              if(tbody) { tbody.innerHTML = tableHtml; calcularTudo(); }
+            if (window._uiInitialized) {
+               salvarDados(false).then(() => location.reload());
             }
           }
         }
       });
       
-      // Load operators FIRST (once), then show profile selector with the full list
-      db.ref('cartorios/' + currentCartorioId + '/config/operadores').once('value', (opSnap) => {
-        if (opSnap.exists()) {
-          OPERADORES = opSnap.val();
-          localStorage.setItem('operadores_config_v1', JSON.stringify(OPERADORES));
-        }
-        checkProfileSelection(); // Show operator selector
-        // carregarDados() is called by setActiveOperator() after operator is chosen
-        // Keep a live listener for future operator changes (new operators added by admin)
-        db.ref('cartorios/' + currentCartorioId + '/config/operadores').on('value', (opSnapLive) => {
-          if (opSnapLive.exists()) {
-            const remote = opSnapLive.val();
-            if (JSON.stringify(remote) !== localStorage.getItem('operadores_config_v1')) {
-              localStorage.setItem('operadores_config_v1', JSON.stringify(remote));
-              OPERADORES = remote;
-            }
+      db.ref('cartorios/' + currentCartorioId + '/config/operadores').on('value', (opSnapLive) => {
+        if (opSnapLive.exists()) {
+          OPERADORES = opSnapLive.val();
+          if (!window._uiInitialized) {
+            if (splashStatus) splashStatus.textContent = 'Configurações prontas!';
+            loadConfigAndBuildUI();
+            checkProfileSelection(); 
           }
-        });
+        }
       });
 
       db.ref('cartorios/' + currentCartorioId + '/config/labels').on('value', (lblSnap) => {
-        if (lblSnap.exists()) {
-          const remote = lblSnap.val();
-          if (JSON.stringify(remote) !== localStorage.getItem('labels_config_v1')) {
-            localStorage.setItem('labels_config_v1', JSON.stringify(remote));
-            LABELS = remote;
-            // Only update label text, never reload the whole UI
-            if(document.getElementById('lbl-infinity-geral')) setEl('lbl-infinity-geral', `Total do Relatório da ${LABELS.maquininha}`);
-          }
+        if (lblSnap.exists()) { 
+          LABELS = lblSnap.val(); 
+          if(document.getElementById('lbl-infinity-geral')) setEl('lbl-infinity-geral', `Total do Relatório da ${LABELS.maquininha}`); 
         }
       });
 
       db.ref('cartorios/' + currentCartorioId + '/config/departamentos').on('value', (depSnap) => {
-        if (depSnap.exists()) {
-          const remote = depSnap.val();
-          if (JSON.stringify(remote) !== localStorage.getItem('departamentos_config_v1')) {
-            localStorage.setItem('departamentos_config_v1', JSON.stringify(remote));
-            DEPARTAMENTOS = remote;
-          }
-        }
+        if (depSnap.exists()) { DEPARTAMENTOS = depSnap.val(); }
       });
 
       db.ref('cartorios/' + currentCartorioId + '/config/sistemas').on('value', (sysSnap) => {
-        if (sysSnap.exists()) {
-          const remote = sysSnap.val();
-          if (JSON.stringify(remote) !== localStorage.getItem('sistemas_config_v1')) {
-            localStorage.setItem('sistemas_config_v1', JSON.stringify(remote));
-            SISTEMAS = remote;
-          }
-        }
+        if (sysSnap.exists()) { SISTEMAS = sysSnap.val(); }
       });
+      
       db.ref('cartorios/' + currentCartorioId + '/config/lockPermission').on('value', (lockSnap) => {
         if (lockSnap.exists()) configOperadoresPodemDestravar = lockSnap.val();
       });
-
-      // checkProfileSelection() and carregarDados() are called inside operadores.once() above
     } else {
+      dismissSplash();
       alert("Erro: Perfil de usuário não encontrado.");
       auth.signOut();
     }
   } else {
+    dismissSplash();
     document.getElementById('auth-container').style.display = 'flex';
     document.body.classList.add('auth-mode');
     currentCartorioId = null;
@@ -430,6 +368,8 @@ auth.onAuthStateChanged(async (user) => {
     if(disp) disp.style.display = 'none';
   }
 });
+
+
 
 function checkProfileSelection() {
   if(document.body.classList.contains('auth-mode')) return;
@@ -686,45 +626,30 @@ async function carregarDados() {
 
   unsubscribeSnapshot = db.ref('cartorios/' + currentCartorioId + '/caixas/' + dateStr).on('value', (snapshot) => {
     window._dataSessionActive = true;
-    window._firebaseDataLoaded = true; // Firebase responded — saves are now allowed
+    window._firebaseDataLoaded = true;
+    const splashStatus = document.getElementById('splash-status');
+    if (splashStatus) splashStatus.textContent = 'Sincronizando...';
+
     if (snapshot.exists()) {
       const data = snapshot.val();
-      localStorage.setItem(localKey, JSON.stringify(data));
       lastKnownState = JSON.parse(JSON.stringify(data));
       isRemoteUpdate = true;
       try { _preencherFormulario(data); } finally { isRemoteUpdate = false; }
       setEl('last-saved', '☁ Sincronizado');
-      
-      const tip = document.getElementById('last-saved-tooltip');
-      if (tip) {
-        const modPor = data._modificadoPor || 'desconhecido';
-        const modAs = data._modificadoAs || '';
-        tip.textContent = modAs ? `Última alteração às ${modAs} por ${modPor}` : `Última alteração por ${modPor}`;
-      }
+      dismissSplash();
     } else {
-      lastKnownState = null; // A nuvem está vazia, o próximo save precisa enviar tudo!
-      const saved = localStorage.getItem(localKey);
+      lastKnownState = null; 
       isRemoteUpdate = true;
-      try {
-        if (saved) {
-          try { 
-            const parsed = JSON.parse(saved);
-            _preencherFormulario(parsed); 
-          } catch(e) { _preencherFormulario(null); }
-          setEl('last-saved', '💾 Dados locais (offline)');
-        } else {
-          _preencherFormulario(null);
-          setEl('last-saved', '');
-        }
-      } finally {
-        isRemoteUpdate = false;
-      }
+      try { _preencherFormulario(null); } finally { isRemoteUpdate = false; }
+      setEl('last-saved', '');
+      dismissSplash();
     }
   }, (error) => {
-    console.error("Erro no on(value): ", error);
     setEl('last-saved', '⚠ Erro de conexão');
+    dismissSplash();
   });
 }
+
 
 async function salvarDados(manual = false) {
   const dateStr = document.getElementById('mainDate').value;
@@ -757,9 +682,8 @@ async function salvarDados(manual = false) {
   const delta = getDeltaNested(dados, lastKnownState);
   if (!delta && !manual) { setEl('last-saved', '☁ Sincronizado'); return; }
 
-  localStorage.setItem(localKey, JSON.stringify(dados));
-  
   const wasNull = !lastKnownState;
+
   lastKnownState = JSON.parse(JSON.stringify(dados));
   
   const now = new Date();
@@ -802,18 +726,15 @@ function mudarData() {
 
 // ═══ SOFT RELOAD (sem location.reload) ═══
 function softReloadUI() {
-  CAIXAS = JSON.parse(localStorage.getItem('caixa_config_v1') || JSON.stringify(DEFAULT_CAIXAS));
-  OPERADORES = JSON.parse(localStorage.getItem('operadores_config_v1') || JSON.stringify(DEFAULT_OPERADORES));
-  LABELS = JSON.parse(localStorage.getItem('labels_config_v1') || JSON.stringify(DEFAULT_LABELS));
-  DEPARTAMENTOS = JSON.parse(localStorage.getItem('departamentos_config_v1') || '[]');
-  SISTEMAS = JSON.parse(localStorage.getItem('sistemas_config_v1') || '[]');
   const pagesContainer = document.getElementById('pages-container');
   pagesContainer.querySelectorAll('.page:not(#page-geral):not(#page-dashboard)').forEach(p => p.remove());
   document.getElementById('tab-nav-container').innerHTML = '';
+  window._uiInitialized = false;
   loadConfigAndBuildUI();
   applyMathInputs(); lucide.createIcons();
   carregarDados();
 }
+
 
 // ═══ NEW FEATURES ═══
 function gerarResumoNatural() {
@@ -898,8 +819,8 @@ function initDragDropTabs() {
           const configRef = db.ref('cartorios/' + currentCartorioId + '/config/caixas');
           configRef.set(CAIXAS).then(() => {
             showToast('Abas reordenadas e salvas!', 2000);
-            localStorage.setItem('caixa_config_v1', JSON.stringify(CAIXAS));
           }).catch(err => console.error(err));
+
         }
       }
     });
@@ -1084,7 +1005,10 @@ function getFriendlyAuthError(code) {
 
 // ═══ INIT ═══
 function init() {
-  initTheme(); loadConfigAndBuildUI(); initChart(); initDashboardMonth();
+  initTheme(); 
+  initChart(); 
+  initDashboardMonth();
+
   const today = new Date().toLocaleDateString('en-CA'); document.getElementById('mainDate').value = today;
   applyMathInputs(); lucide.createIcons();
   initKeyboardShortcuts();
